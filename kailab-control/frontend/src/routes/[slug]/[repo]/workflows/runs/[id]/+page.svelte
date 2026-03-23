@@ -132,8 +132,14 @@
 		const { slug, repo, id } = $page.params;
 		try {
 			const data = await api('POST', `/api/v1/orgs/${slug}/repos/${repo}/runs/${id}/rerun`);
-			if (data.id) goto(`/${slug}/${repo}/workflows/runs/${data.id}`);
-		} catch (e) { error = 'Failed to re-run workflow'; }
+			if (data?.id) {
+				goto(`/${slug}/${repo}/workflows/runs/${data.id}`);
+			} else {
+				goto(`/${slug}/${repo}/workflows`);
+			}
+		} catch (e) {
+			error = 'Failed to re-run workflow';
+		}
 	}
 
 	function jumpToError() {
