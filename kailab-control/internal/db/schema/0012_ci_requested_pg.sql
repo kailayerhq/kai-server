@@ -1,0 +1,2 @@
+-- Track CI access requests
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ci_requested BOOLEAN NOT NULL DEFAULT FALSE;

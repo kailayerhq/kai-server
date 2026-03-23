@@ -1,0 +1,65 @@
+# Go binaries and build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+.env
+
+# Go workspace and vendor
+go.work
+go.work.sum
+vendor/
+
+# Build directory
+bin/
+dist/
+
+# Test data
+kai-cli/testdata/repo
+
+# Project binaries
+kai-cli/kai
+kailab/kailabd
+
+# Kailab data
+kailab/.kailab/
+kailab/data/
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+.kai/
+kailab-control/internal/api/web/_app/
+
+# Benchmark repo caches and artifacts
+bench/.repo-cache/
+bench/__pycache__/
+bench/results/*/kai
+
+# Build artifacts
+kailab-control/kailab-control
+kailab-control/kailab-control.db
+kailab-control/frontend/.svelte-kit/output/
+
+# Terraform
+deploy/cloudflare/.terraform/
+deploy/cloudflare/terraform.tfstate
+deploy/cloudflare/terraform.tfstate.backup
+deploy/cloudflare/terraform.tfvars
+
+# Deploy secrets
+deploy/.env
+
+# Claude Code local settings
+.claude/settings.local.json

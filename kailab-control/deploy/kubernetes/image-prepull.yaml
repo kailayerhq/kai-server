@@ -1,0 +1,68 @@
+# Pre-pull CI job container images on ci-runner nodes so pod startup is instant.
+# Runs as a DaemonSet that pulls images then sleeps forever.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ci-image-prepull
+  namespace: kailab-ci
+  labels:
+    app.kubernetes.io/name: ci-image-prepull
+    app.kubernetes.io/part-of: kailab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ci-image-prepull
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ci-image-prepull
+    spec:
+      nodeSelector:
+        node-type: ci-runner
+      tolerations:
+        - key: ci-runner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Init containers pull the images; main container just sleeps
+      initContainers:
+        - name: pull-golang
+          image: golang:1.25-alpine
+          command: ["true"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi
+        - name: pull-kaniko
+          image: gcr.io/kaniko-project/executor:v1.23.2-debug
+          command: ["/busybox/true"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi
+        - name: pull-gcloud
+          image: google/cloud-sdk:alpine
+          command: ["true"]
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi

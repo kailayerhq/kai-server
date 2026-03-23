@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="shortcut icon" href="/favicon.ico" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+		<meta name="apple-mobile-web-app-title" content="KaiLayer" />
+		<link rel="manifest" href="/site.webmanifest" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Kai</title>
+		<script>
+			(function() {
+				var saved = localStorage.getItem('theme');
+				var theme;
+				if (saved === 'light' || saved === 'dark') {
+					theme = saved;
+				} else {
+					theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+				}
+				document.documentElement.setAttribute('data-theme', theme);
+			})();
+		</script>
+		
+		<link rel="modulepreload" href="/_app/immutable/entry/start.C8jRGXWA.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/DUZLAHIU.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/lvMa7MFk.js">
+		<link rel="modulepreload" href="/_app/immutable/entry/app.BofFN_ho.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/BmaUxVHs.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/Bzak7iHL.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/C977cvCS.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/D6llVO4z.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/C2dHkC0B.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/COr1Dxtk.js">
+	</head>
+	<body class="bg-kai-bg text-kai-text" data-sveltekit-preload-data="hover">
+		<div style="display: contents">
+			<script>
+				{
+					__sveltekit_1askfeb = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.C8jRGXWA.js"),
+						import("/_app/immutable/entry/app.BofFN_ho.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+	</body>
+</html>

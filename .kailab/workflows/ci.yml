@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+
+env:
+  REGISTRY: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/preplan
+  KAILAB_IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/preplan/kailab
+  KAILAB_CONTROL_IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/preplan/kailab-control
+  DOCS_IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/preplan/kai-docs
+
+jobs:
+  test-kailab:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.25-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: apk add --no-cache gcc musl-dev
+      - name: Run tests
+        run: |
+          cd kailab
+          CGO_ENABLED=1 go test ./...
+
+  test-kailab-control:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.25-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: |
+          cd kailab-control
+          go test ./...
+
+  build-kailab:
+    needs: [test-kailab, test-kailab-control]
+    runs-on: ubuntu-latest
+    container:
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push
+        run: |
+          echo "${{ secrets.GCP_SERVICE_KEY }}" | base64 -d > /kaniko/gcp-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+          /kaniko/executor \
+            --context=/workspace \
+            --dockerfile=/workspace/kailab/Dockerfile \
+            --destination=${{ env.KAILAB_IMAGE }}:${{ github.sha }} \
+            --destination=${{ env.KAILAB_IMAGE }}:latest \
+            --cache=true
+
+  build-kailab-control:
+    needs: [test-kailab, test-kailab-control]
+    runs-on: ubuntu-latest
+    container:
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push
+        run: |
+          echo "${{ secrets.GCP_SERVICE_KEY }}" | base64 -d > /kaniko/gcp-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+          /kaniko/executor \
+            --context=/workspace/kailab-control \
+            --dockerfile=/workspace/kailab-control/Dockerfile \
+            --destination=${{ env.KAILAB_CONTROL_IMAGE }}:${{ github.sha }} \
+            --destination=${{ env.KAILAB_CONTROL_IMAGE }}:latest \
+            --cache=true
+
+  build-docs:
+    needs: [test-kailab, test-kailab-control]
+    runs-on: ubuntu-latest
+    container:
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push
+        run: |
+          echo "${{ secrets.GCP_SERVICE_KEY }}" | base64 -d > /kaniko/gcp-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+          /kaniko/executor \
+            --context=/workspace \
+            --dockerfile=/workspace/docs-site/Dockerfile \
+            --destination=${{ env.DOCS_IMAGE }}:${{ github.sha }} \
+            --destination=${{ env.DOCS_IMAGE }}:latest \
+            --cache=true
+
+  deploy:
+    needs: [build-kailab, build-kailab-control, build-docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kailab/apply-k8s
+        with:
+          path: deploy/k8s/overlays/production
+          images: |
+            YOUR_REGISTRY/kailab=${{ env.KAILAB_IMAGE }}:${{ github.sha }}
+            YOUR_REGISTRY/kailab-control=${{ env.KAILAB_CONTROL_IMAGE }}:${{ github.sha }}
+            us-central1-docker.pkg.dev/PROJECT_ID/preplan/kai-docs=${{ env.DOCS_IMAGE }}:${{ github.sha }}
+          timeout: "600"
