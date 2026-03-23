@@ -563,6 +563,13 @@ func (r *Runner) executeJob(ctx context.Context, claim *model.JobClaimResponse) 
 			jobExec.ExecuteCommandWithTimeout(ctx, 10*time.Second, "truncate -s 0 /tmp/github_output 2>/dev/null || true", "bash", io.Discard)
 		}
 
+		// Merge outputs from built-in actions (e.g. kailab/ci-plan)
+		if result != nil && result.Outputs != nil {
+			for k, v := range result.Outputs {
+				stepOutputs[k] = v
+			}
+		}
+
 		// Record step result for steps.* context
 		stepOutcome := "success"
 		if conclusion == model.ConclusionFailure {

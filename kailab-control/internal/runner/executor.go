@@ -465,6 +465,8 @@ func (jp *JobPod) executeAction(ctx context.Context, stepDef *StepDefinition, jo
 		return jp.actionDockerBuildPush(ctx, stepDef, logWriter)
 	case strings.HasPrefix(action, "kailab/deploy-k8s"):
 		return jp.actionDeployK8s(ctx, stepDef, logWriter)
+	case strings.HasPrefix(action, "kailab/ci-plan"):
+		return jp.actionCIPlan(ctx, stepDef, jobContext, logWriter)
 	case strings.HasPrefix(action, "kailab/apply-k8s"):
 		return jp.actionApplyK8s(ctx, stepDef, logWriter)
 	default:
@@ -2176,6 +2178,7 @@ func rolloutComplete(d *appsv1.Deployment) bool {
 type ExecutionResult struct {
 	ExitCode int
 	Output   string
+	Outputs  map[string]string // Step outputs (key=value pairs for downstream jobs)
 }
 
 // Helper functions

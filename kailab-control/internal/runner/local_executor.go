@@ -204,6 +204,8 @@ func (j *LocalJob) executeAction(ctx context.Context, stepDef *StepDefinition, j
 		// Cache is a no-op locally for now — local disk is the cache
 		fmt.Fprintf(logWriter, "Cache action skipped (local executor uses host filesystem)\n")
 		return &ExecutionResult{ExitCode: 0}, nil
+	case strings.HasPrefix(action, "kailab/ci-plan"):
+		return j.actionCIPlan(ctx, stepDef, jobContext, logWriter)
 	case strings.HasPrefix(action, "kailab/apply-k8s"):
 		return j.actionApplyK8s(ctx, stepDef, logWriter)
 	default:
@@ -404,6 +406,68 @@ func (j *LocalJob) actionDownloadArtifact(ctx context.Context, stepDef *StepDefi
 
 	script := fmt.Sprintf("cd %q && tar xzf -", absPath)
 	return j.executeCommand(ctx, script, "bash", nil, "", logWriter)
+}
+
+// actionCIPlan queries the data plane for changed files and determines affected modules.
+func (j *LocalJob) actionCIPlan(ctx context.Context, stepDef *StepDefinition, jobContext map[string]interface{}, logWriter io.Writer) (*ExecutionResult, error) {
+	// Delegate to the shared implementation via a temporary JobPod-compatible wrapper
+	modulesInput := stepDef.With["modules"]
+	modules := parseModuleLines(modulesInput)
+	if len(modules) == 0 {
+		fmt.Fprintf(logWriter, "No modules configured, all targets will run\n")
+		return &ExecutionResult{ExitCode: 0}, nil
+	}
+
+	cloneURL, _ := jobContext["clone_url"].(string)
+	if cloneURL == "" {
+		fmt.Fprintf(logWriter, "No clone URL available, skipping plan\n")
+		return &ExecutionResult{ExitCode: 0}, nil
+	}
+
+	changedFiles, err := fetchChangedFiles(ctx, cloneURL, logWriter)
+	if err != nil {
+		fmt.Fprintf(logWriter, "Warning: could not fetch changeset: %v\n", err)
+		fmt.Fprintf(logWriter, "All targets will run (no plan available)\n")
+		result := &ExecutionResult{ExitCode: 0, Outputs: make(map[string]string)}
+		for name := range modules {
+			result.Outputs[name] = "true"
+		}
+		return result, nil
+	}
+
+	fmt.Fprintf(logWriter, "Changed files: %d\n", len(changedFiles))
+
+	result := &ExecutionResult{ExitCode: 0, Outputs: make(map[string]string)}
+	anyAffected := false
+
+	for name, prefix := range modules {
+		affected := false
+		for _, file := range changedFiles {
+			if strings.HasPrefix(file, prefix) {
+				affected = true
+				break
+			}
+		}
+		result.Outputs[name] = fmt.Sprintf("%t", affected)
+		if affected {
+			anyAffected = true
+			fmt.Fprintf(logWriter, "  %s: affected (prefix %s)\n", name, prefix)
+		} else {
+			fmt.Fprintf(logWriter, "  %s: not affected\n", name)
+		}
+	}
+
+	if !anyAffected && len(changedFiles) > 0 {
+		fmt.Fprintf(logWriter, "No modules matched changed files — running all targets\n")
+		for name := range modules {
+			result.Outputs[name] = "true"
+		}
+	}
+
+	filesJSON, _ := json.Marshal(changedFiles)
+	result.Outputs["changed_files"] = string(filesJSON)
+
+	return result, nil
 }
 
 // actionApplyK8s reads kustomize manifests from the local workspace,

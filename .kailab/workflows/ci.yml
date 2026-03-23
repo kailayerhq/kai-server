@@ -12,7 +12,23 @@ env:
   DOCS_IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/preplan/kai-docs
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: kailab/ci-plan
+        id: plan
+        with:
+          modules: |
+            kailab=kailab/
+            kailab-control=kailab-control/
+            kai-core=kai-core/
+            docs=docs-site/
+            deploy=deploy/
+
   test-kailab:
+    needs: [plan]
+    if: needs.plan.outputs.kailab == 'true' || needs.plan.outputs.kai-core == 'true'
     runs-on: ubuntu-latest
     container:
       image: golang:1.25-alpine
@@ -26,6 +42,8 @@ jobs:
           CGO_ENABLED=1 go test ./...
 
   test-kailab-control:
+    needs: [plan]
+    if: needs.plan.outputs.kailab-control == 'true' || needs.plan.outputs.kai-core == 'true'
     runs-on: ubuntu-latest
     container:
       image: golang:1.25-alpine
@@ -37,7 +55,8 @@ jobs:
           go test ./...
 
   build-kailab:
-    needs: [test-kailab, test-kailab-control]
+    needs: [plan, test-kailab, test-kailab-control]
+    if: needs.plan.outputs.kailab == 'true' || needs.plan.outputs.kai-core == 'true'
     runs-on: ubuntu-latest
     container:
       image: gcr.io/kaniko-project/executor:v1.23.2-debug
@@ -56,7 +75,8 @@ jobs:
             --registry-mirror=us-central1-docker.pkg.dev/preplanai/dockerhub-cache
 
   build-kailab-control:
-    needs: [test-kailab, test-kailab-control]
+    needs: [plan, test-kailab, test-kailab-control]
+    if: needs.plan.outputs.kailab-control == 'true' || needs.plan.outputs.kai-core == 'true'
     runs-on: ubuntu-latest
     container:
       image: gcr.io/kaniko-project/executor:v1.23.2-debug
@@ -75,7 +95,8 @@ jobs:
             --registry-mirror=us-central1-docker.pkg.dev/preplanai/dockerhub-cache
 
   build-docs:
-    needs: [test-kailab, test-kailab-control]
+    needs: [plan]
+    if: needs.plan.outputs.docs == 'true'
     runs-on: ubuntu-latest
     container:
       image: gcr.io/kaniko-project/executor:v1.23.2-debug
