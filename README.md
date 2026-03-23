@@ -12,7 +12,7 @@ Kai parses your code with tree-sitter, builds semantic dependency graphs, and us
 | **kailab** | Data plane — graph store, SSH, objects | Go + Postgres |
 | **kai-core** | Semantic engine — parsing, diffing, intent | Go + tree-sitter |
 
-Also includes **kai-playground** (interactive tutorial) and **docs-site** (VitePress documentation).
+Also includes **docs-site** (VitePress documentation).
 
 ## Quick Start
 
@@ -64,7 +64,6 @@ kai-server/
 ├── kailab/             # Data plane (graph storage, SSH server)
 ├── kailab-control/     # Control plane (API, web UI, CI runner)
 │   └── frontend/       # SvelteKit web UI
-├── kai-playground/     # Interactive tutorial
 ├── docs-site/          # VitePress documentation
 ├── docs/               # Internal documentation
 ├── deploy/             # Kubernetes manifests, Terraform, CI configs
