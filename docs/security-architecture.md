@@ -61,9 +61,9 @@ Roles are per-organization. A user can have different roles in different orgs.
 
 ### Data Isolation
 
-- Each repository has its own SQLite database file
-- Database files are stored in tenant-scoped directories: `data/{tenant}/{repo}/kai.db`
-- No shared tables between tenants
+- Each repository is isolated within Postgres using a repo UUID
+- All graph data (objects, refs, edges) is scoped by repo ID
+- No cross-tenant data access
 - API routes are scoped: `/{tenant}/{repo}/v1/*`
 
 ### Request Isolation
@@ -101,9 +101,9 @@ Roles are per-organization. A user can have different roles in different orgs.
 
 ### Storage
 
-- SQLite databases on GKE persistent disks (encrypted at rest)
-- No external database dependencies
-- Backups via volume snapshots
+- Postgres database with SSL/TLS connections (encrypted at rest and in transit)
+- GCS blob storage for large objects (optional)
+- Backups via Postgres pg_dump and volume snapshots
 
 ### Monitoring
 

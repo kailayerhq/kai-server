@@ -23,5 +23,5 @@ features:
   - title: MCP Server
     details: 12 tools for AI coding assistants — call graphs, impact analysis, test coverage, dependency maps. Works with Claude Code and Cursor.
   - title: Local-First
-    details: Everything runs locally with zero cloud dependency. SQLite graph store, Git integration, and offline-capable CLI. Push to kaicontext.com to share.
+    details: Everything runs locally with zero cloud dependency. Local graph store, Git integration, and offline-capable CLI. Push to kaicontext.com to share.
 ---

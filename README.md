@@ -17,7 +17,7 @@ Kai parses your code with tree-sitter, builds semantic dependency graphs, and us
 │           │                          │
 │  ┌────────▼──────────┐               │
 │  │ kailab             │  Data plane   │
-│  │ (Go + SQLite)      │  Graph store, │
+│  │ (Go + Postgres)    │  Graph store, │
 │  └───────────────────┘  SSH, objects  │
 │                                      │
 │  ┌───────────────────┐               │
@@ -27,7 +27,7 @@ Kai parses your code with tree-sitter, builds semantic dependency graphs, and us
 └─────────────────────────────────────┘
 ```
 
-- **kailab** — Data plane. Stores semantic graphs in per-repo SQLite databases. Handles git push/pull over SSH. Blob storage via local disk or GCS.
+- **kailab** — Data plane. Stores semantic graphs in Postgres. Handles git push/pull over SSH. Blob storage via local disk or GCS.
 - **kailab-control** — Control plane. Web UI (SvelteKit), REST API, authentication (magic links), org/repo management, CI pipeline execution, code reviews.
 - **kai-core** — Semantic analysis engine. Tree-sitter parsing, intent classification, dependency graph construction, semantic diffing.
 - **kai-playground** — Interactive browser-based tutorial environment.
@@ -57,7 +57,7 @@ cd ../kailab-control
 make build
 ```
 
-Requires Go 1.24+ and a C compiler (CGO needed for SQLite and tree-sitter).
+Requires Go 1.25+ and a C compiler (CGO needed for tree-sitter).
 
 ### Configure
 
