@@ -6,32 +6,13 @@ Kai parses your code with tree-sitter, builds semantic dependency graphs, and us
 
 ## Architecture
 
-```
-┌─────────────────────────────────────┐
-│         kai-server                   │
-│                                      │
-│  ┌──────────────────┐               │
-│  │ kailab-control    │  Control plane │
-│  │ (Go + SvelteKit)  │  Web UI, API,  │
-│  └────────┬──────────┘  auth, CI      │
-│           │                          │
-│  ┌────────▼──────────┐               │
-│  │ kailab             │  Data plane   │
-│  │ (Go + Postgres)    │  Graph store, │
-│  └───────────────────┘  SSH, objects  │
-│                                      │
-│  ┌───────────────────┐               │
-│  │ kai-core           │  Semantic     │
-│  │ (Go + tree-sitter) │  engine       │
-│  └───────────────────┘               │
-└─────────────────────────────────────┘
-```
+| Component | Role | Stack |
+|-----------|------|-------|
+| **kailab-control** | Control plane — Web UI, API, auth, CI | Go + SvelteKit |
+| **kailab** | Data plane — graph store, SSH, objects | Go + Postgres |
+| **kai-core** | Semantic engine — parsing, diffing, intent | Go + tree-sitter |
 
-- **kailab** — Data plane. Stores semantic graphs in Postgres. Handles git push/pull over SSH. Blob storage via local disk or GCS.
-- **kailab-control** — Control plane. Web UI (SvelteKit), REST API, authentication (magic links), org/repo management, CI pipeline execution, code reviews.
-- **kai-core** — Semantic analysis engine. Tree-sitter parsing, intent classification, dependency graph construction, semantic diffing.
-- **kai-playground** — Interactive browser-based tutorial environment.
-- **docs-site** — Documentation site (VitePress).
+Also includes **kai-playground** (interactive tutorial) and **docs-site** (VitePress documentation).
 
 ## Quick Start
 
