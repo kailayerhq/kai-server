@@ -52,7 +52,8 @@ jobs:
             --dockerfile=/workspace/kailab/Dockerfile \
             --destination=${{ env.KAILAB_IMAGE }}:${{ github.sha }} \
             --destination=${{ env.KAILAB_IMAGE }}:latest \
-            --cache=true
+            --cache=true \
+            --registry-mirror=us-central1-docker.pkg.dev/preplanai/dockerhub-cache
 
   build-kailab-control:
     needs: [test-kailab, test-kailab-control]
@@ -70,7 +71,8 @@ jobs:
             --dockerfile=/workspace/kailab-control/Dockerfile \
             --destination=${{ env.KAILAB_CONTROL_IMAGE }}:${{ github.sha }} \
             --destination=${{ env.KAILAB_CONTROL_IMAGE }}:latest \
-            --cache=true
+            --cache=true \
+            --registry-mirror=us-central1-docker.pkg.dev/preplanai/dockerhub-cache
 
   build-docs:
     needs: [test-kailab, test-kailab-control]
@@ -88,7 +90,8 @@ jobs:
             --dockerfile=/workspace/docs-site/Dockerfile \
             --destination=${{ env.DOCS_IMAGE }}:${{ github.sha }} \
             --destination=${{ env.DOCS_IMAGE }}:latest \
-            --cache=true
+            --cache=true \
+            --registry-mirror=us-central1-docker.pkg.dev/preplanai/dockerhub-cache
 
   deploy:
     needs: [build-kailab, build-kailab-control, build-docs]
