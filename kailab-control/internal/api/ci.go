@@ -1862,7 +1862,7 @@ func (h *Handler) sendPipelineNotification(runID, conclusion string) {
 	}
 
 	// Build run URL
-	runURL := h.cfg.BaseURL + "/orgs/" + org.Slug + "/" + repo.Name + "/workflows/runs/" + runID
+	runURL := h.cfg.BaseURL + "/" + org.Slug + "/" + repo.Name + "/workflows/runs/" + runID
 
 	// Send the notification
 	err = h.email.SendPipelineResult(
