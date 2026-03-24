@@ -1424,3 +1424,89 @@ func GetEdgesBySnapshotDB(db *sql.DB, at []byte, edgeType string) ([]Edge, error
 	}
 	return edges, rows.Err()
 }
+
+// --- Authorship ---
+
+// AuthorshipRange represents a line range with AI/human attribution.
+type AuthorshipRange struct {
+	SnapshotID []byte `json:"snapshot_id"`
+	FilePath   string `json:"file_path"`
+	StartLine  int    `json:"start_line"`
+	EndLine    int    `json:"end_line"`
+	AuthorType string `json:"author_type"`
+	Agent      string `json:"agent"`
+	Model      string `json:"model"`
+	SessionID  string `json:"session_id"`
+}
+
+// InsertAuthorshipRanges inserts authorship ranges in a transaction (SQLite).
+func (db *DB) InsertAuthorshipRanges(tx *sql.Tx, ranges []AuthorshipRange) error {
+	if len(ranges) == 0 {
+		return nil
+	}
+
+	ts := cas.NowMs()
+	stmt, err := tx.Prepare(`
+		INSERT OR REPLACE INTO authorship_ranges (snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("preparing authorship insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, r := range ranges {
+		if _, err := stmt.Exec(r.SnapshotID, r.FilePath, r.StartLine, r.EndLine, r.AuthorType, r.Agent, r.Model, r.SessionID, ts); err != nil {
+			return fmt.Errorf("inserting authorship range: %w", err)
+		}
+	}
+	return nil
+}
+
+// GetAuthorshipRanges returns authorship ranges for a file in a snapshot (SQLite).
+func (db *DB) GetAuthorshipRanges(snapshotID []byte, filePath string) ([]AuthorshipRange, error) {
+	rows, err := db.conn.Query(`
+		SELECT snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id
+		FROM authorship_ranges
+		WHERE snapshot_id = ? AND file_path = ?
+		ORDER BY start_line
+	`, snapshotID, filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []AuthorshipRange
+	for rows.Next() {
+		var r AuthorshipRange
+		if err := rows.Scan(&r.SnapshotID, &r.FilePath, &r.StartLine, &r.EndLine, &r.AuthorType, &r.Agent, &r.Model, &r.SessionID); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// GetAllAuthorshipRanges returns all authorship ranges for a snapshot (SQLite).
+func (db *DB) GetAllAuthorshipRanges(snapshotID []byte) ([]AuthorshipRange, error) {
+	rows, err := db.conn.Query(`
+		SELECT snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id
+		FROM authorship_ranges
+		WHERE snapshot_id = ?
+		ORDER BY file_path, start_line
+	`, snapshotID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []AuthorshipRange
+	for rows.Next() {
+		var r AuthorshipRange
+		if err := rows.Scan(&r.SnapshotID, &r.FilePath, &r.StartLine, &r.EndLine, &r.AuthorType, &r.Agent, &r.Model, &r.SessionID); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}

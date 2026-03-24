@@ -353,6 +353,10 @@ func NewRouter(reg repo.RepoRegistry, cfg *config.Config) http.Handler {
 	// Edges
 	mux.Handle("POST /{tenant}/{repo}/v1/edges", withMetrics("POST /{tenant}/{repo}/v1/edges", withRepo(http.HandlerFunc(h.IngestEdges))))
 
+	// Authorship (AI attribution)
+	mux.Handle("POST /{tenant}/{repo}/v1/authorship", withMetrics("POST /{tenant}/{repo}/v1/authorship", withRepo(http.HandlerFunc(h.IngestAuthorship))))
+	mux.Handle("GET /{tenant}/{repo}/v1/authorship/{snapshot}", withMetrics("GET /{tenant}/{repo}/v1/authorship/{snapshot}", withRepo(http.HandlerFunc(h.GetAuthorship))))
+
 	return mux
 }
 
@@ -3818,6 +3822,140 @@ func (h *Handler) IngestEdges(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"inserted": len(edges),
+	})
+}
+
+// IngestAuthorship handles POST /{tenant}/{repo}/v1/authorship
+// Receives AI authorship attribution ranges from kai push.
+func (h *Handler) IngestAuthorship(w http.ResponseWriter, r *http.Request) {
+	rh := RepoFrom(r.Context())
+	if rh == nil {
+		writeError(w, http.StatusInternalServerError, "repo not in context", nil)
+		return
+	}
+
+	var req struct {
+		Ranges []struct {
+			SnapshotID string `json:"snapshot_id"` // hex
+			FilePath   string `json:"file_path"`
+			StartLine  int    `json:"start_line"`
+			EndLine    int    `json:"end_line"`
+			AuthorType string `json:"author_type"`
+			Agent      string `json:"agent"`
+			Model      string `json:"model"`
+			SessionID  string `json:"session_id"`
+		} `json:"ranges"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	if len(req.Ranges) == 0 {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"inserted": 0,
+		})
+		return
+	}
+
+	// Convert to store.AuthorshipRange format
+	ranges := make([]store.AuthorshipRange, 0, len(req.Ranges))
+	for _, ar := range req.Ranges {
+		snapID, err := hex.DecodeString(ar.SnapshotID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid snapshot_id hex", err)
+			return
+		}
+		ranges = append(ranges, store.AuthorshipRange{
+			SnapshotID: snapID,
+			FilePath:   ar.FilePath,
+			StartLine:  ar.StartLine,
+			EndLine:    ar.EndLine,
+			AuthorType: ar.AuthorType,
+			Agent:      ar.Agent,
+			Model:      ar.Model,
+			SessionID:  ar.SessionID,
+		})
+	}
+
+	// Insert in a transaction
+	tx, err := store.BeginTx(rh.DB)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to begin transaction", err)
+		return
+	}
+	defer tx.Rollback()
+
+	if err := store.PgInsertAuthorshipRangesTx(tx, rh.RepoID, ranges); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to insert authorship ranges", err)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to commit", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"inserted": len(ranges),
+	})
+}
+
+// GetAuthorship handles GET /{tenant}/{repo}/v1/authorship/{snapshot}
+// Returns authorship ranges for a snapshot, optionally filtered by file.
+func (h *Handler) GetAuthorship(w http.ResponseWriter, r *http.Request) {
+	rh := RepoFrom(r.Context())
+	if rh == nil {
+		writeError(w, http.StatusInternalServerError, "repo not in context", nil)
+		return
+	}
+
+	snapshotHex := r.PathValue("snapshot")
+	snapshotID, err := hex.DecodeString(snapshotHex)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid snapshot hex", err)
+		return
+	}
+
+	filePath := r.URL.Query().Get("file")
+
+	var ranges []store.AuthorshipRange
+	if filePath != "" {
+		ranges, err = store.PgGetAuthorshipRanges(rh.DB, rh.RepoID, snapshotID, filePath)
+	} else {
+		ranges, err = store.PgGetAllAuthorshipRanges(rh.DB, rh.RepoID, snapshotID)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to query authorship", err)
+		return
+	}
+
+	// Compute summary
+	totalLines, aiLines, humanLines := 0, 0, 0
+	byAgent := make(map[string]int)
+	for _, ar := range ranges {
+		lines := ar.EndLine - ar.StartLine + 1
+		totalLines += lines
+		if ar.AuthorType == "ai" {
+			aiLines += lines
+			agent := ar.Agent
+			if agent == "" {
+				agent = "unknown-ai"
+			}
+			byAgent[agent] += lines
+		} else {
+			humanLines += lines
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"snapshot_id":  snapshotHex,
+		"ranges":       ranges,
+		"total_lines":  totalLines,
+		"ai_lines":     aiLines,
+		"human_lines":  humanLines,
+		"by_agent":     byAgent,
 	})
 }
 

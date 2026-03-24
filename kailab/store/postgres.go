@@ -1499,6 +1499,87 @@ func PgGetEdgesBySnapshotDB(db *sql.DB, repoID string, at []byte, edgeType strin
 	return edges, rows.Err()
 }
 
+// --- Authorship (Postgres) ---
+
+// PgInsertAuthorshipRangesTx inserts authorship ranges in a transaction (Postgres).
+func PgInsertAuthorshipRangesTx(tx *sql.Tx, repoID string, ranges []AuthorshipRange) error {
+	if len(ranges) == 0 {
+		return nil
+	}
+
+	ts := cas.NowMs()
+	stmt, err := tx.Prepare(`
+		INSERT INTO authorship_ranges (repo_id, snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (repo_id, snapshot_id, file_path, start_line) DO UPDATE SET
+			end_line = EXCLUDED.end_line,
+			author_type = EXCLUDED.author_type,
+			agent = EXCLUDED.agent,
+			model = EXCLUDED.model,
+			session_id = EXCLUDED.session_id,
+			created_at = EXCLUDED.created_at
+	`)
+	if err != nil {
+		return fmt.Errorf("preparing authorship insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, r := range ranges {
+		if _, err := stmt.Exec(repoID, r.SnapshotID, r.FilePath, r.StartLine, r.EndLine, r.AuthorType, r.Agent, r.Model, r.SessionID, ts); err != nil {
+			return fmt.Errorf("inserting authorship range: %w", err)
+		}
+	}
+	return nil
+}
+
+// PgGetAuthorshipRanges returns authorship ranges for a file in a snapshot (Postgres).
+func PgGetAuthorshipRanges(db *sql.DB, repoID string, snapshotID []byte, filePath string) ([]AuthorshipRange, error) {
+	rows, err := db.Query(`
+		SELECT snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id
+		FROM authorship_ranges
+		WHERE repo_id = $1 AND snapshot_id = $2 AND file_path = $3
+		ORDER BY start_line
+	`, repoID, snapshotID, filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []AuthorshipRange
+	for rows.Next() {
+		var r AuthorshipRange
+		if err := rows.Scan(&r.SnapshotID, &r.FilePath, &r.StartLine, &r.EndLine, &r.AuthorType, &r.Agent, &r.Model, &r.SessionID); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// PgGetAllAuthorshipRanges returns all authorship ranges for a snapshot (Postgres).
+func PgGetAllAuthorshipRanges(db *sql.DB, repoID string, snapshotID []byte) ([]AuthorshipRange, error) {
+	rows, err := db.Query(`
+		SELECT snapshot_id, file_path, start_line, end_line, author_type, agent, model, session_id
+		FROM authorship_ranges
+		WHERE repo_id = $1 AND snapshot_id = $2
+		ORDER BY file_path, start_line
+	`, repoID, snapshotID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []AuthorshipRange
+	for rows.Next() {
+		var r AuthorshipRange
+		if err := rows.Scan(&r.SnapshotID, &r.FilePath, &r.StartLine, &r.EndLine, &r.AuthorType, &r.Agent, &r.Model, &r.SessionID); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
 // PgSchemaSQL returns the embedded Postgres schema SQL.
 func PgSchemaSQL() string {
 	return schemaPgSQL
