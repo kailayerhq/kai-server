@@ -96,3 +96,20 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE INDEX IF NOT EXISTS edges_src ON edges(repo_id, src);
 CREATE INDEX IF NOT EXISTS edges_dst ON edges(repo_id, dst);
 CREATE INDEX IF NOT EXISTS edges_at ON edges(repo_id, at);
+
+-- AI authorship attribution ranges (pushed from CLI)
+CREATE TABLE IF NOT EXISTS authorship_ranges (
+  repo_id TEXT NOT NULL,
+  snapshot_id BYTEA NOT NULL,
+  file_path TEXT NOT NULL,
+  start_line INTEGER NOT NULL,
+  end_line INTEGER NOT NULL,
+  author_type TEXT NOT NULL,
+  agent TEXT DEFAULT '',
+  model TEXT DEFAULT '',
+  session_id TEXT DEFAULT '',
+  created_at BIGINT NOT NULL,
+  PRIMARY KEY (repo_id, snapshot_id, file_path, start_line)
+);
+CREATE INDEX IF NOT EXISTS authorship_snap ON authorship_ranges(repo_id, snapshot_id);
+CREATE INDEX IF NOT EXISTS authorship_file ON authorship_ranges(repo_id, snapshot_id, file_path);

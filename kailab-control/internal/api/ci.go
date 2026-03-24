@@ -1263,6 +1263,29 @@ func (h *Handler) TriggerCI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, TriggerCIResponse{Runs: runIDs})
 }
 
+// RegisterRunner registers or updates a runner's heartbeat and labels.
+func (h *Handler) RegisterRunner(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RunnerID string   `json:"runner_id"`
+		Labels   []string `json:"labels"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+	if req.RunnerID == "" {
+		writeError(w, http.StatusBadRequest, "runner_id required", nil)
+		return
+	}
+
+	if err := h.db.RegisterRunner(req.RunnerID, req.Labels); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to register runner", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // ClaimJobRequest is sent by runners to claim a job.
 type ClaimJobRequest struct {
 	RunnerID string   `json:"runner_id"`
@@ -1627,7 +1650,16 @@ func (h *Handler) createJobsFromWorkflow(wf *model.Workflow, run *model.Workflow
 				}
 			}
 
-			job, err := h.db.CreateJob(run.ID, ej.Name, expandedNeeds, matrixJSON, []string(ej.Job.RunsOn))
+			// Check if any registered runner can handle this job's runs-on label
+			runsOnLabels := []string(ej.Job.RunsOn)
+			if len(runsOnLabels) > 0 {
+				canRun, _ := h.db.CanRunLabel(runsOnLabels[0])
+				if !canRun {
+					log.Printf("Warning: no runner available for runs-on=%q (job %s), job will be queued anyway", runsOnLabels[0], ej.Name)
+				}
+			}
+
+			job, err := h.db.CreateJob(run.ID, ej.Name, expandedNeeds, matrixJSON, runsOnLabels)
 			if err != nil {
 				return err
 			}

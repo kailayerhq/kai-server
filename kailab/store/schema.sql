@@ -87,3 +87,19 @@ CREATE INDEX IF NOT EXISTS edges_src ON edges(src);
 CREATE INDEX IF NOT EXISTS edges_dst ON edges(dst);
 CREATE INDEX IF NOT EXISTS edges_type ON edges(type);
 CREATE INDEX IF NOT EXISTS edges_at ON edges(at);
+
+-- AI authorship attribution ranges (pushed from CLI)
+CREATE TABLE IF NOT EXISTS authorship_ranges (
+  snapshot_id BLOB NOT NULL,
+  file_path TEXT NOT NULL,
+  start_line INTEGER NOT NULL,
+  end_line INTEGER NOT NULL,
+  author_type TEXT NOT NULL,    -- 'ai' or 'human'
+  agent TEXT DEFAULT '',
+  model TEXT DEFAULT '',
+  session_id TEXT DEFAULT '',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (snapshot_id, file_path, start_line)
+);
+CREATE INDEX IF NOT EXISTS authorship_snap ON authorship_ranges(snapshot_id);
+CREATE INDEX IF NOT EXISTS authorship_file ON authorship_ranges(snapshot_id, file_path);

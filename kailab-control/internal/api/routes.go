@@ -341,6 +341,7 @@ func NewRouter(h *Handler) http.Handler {
 	// Note: Using fixed paths (no wildcards) to avoid conflict with /{org}/{repo}/v1/ pattern
 	// IDs are passed in the request body instead of path parameters
 	mux.HandleFunc("POST /-/ci/trigger", h.TriggerCI)
+	mux.HandleFunc("POST /-/ci/runners/register", h.RegisterRunner)
 	mux.HandleFunc("POST /-/ci/runners/claim", h.ClaimJob)
 	mux.HandleFunc("POST /-/ci/jobs/start", h.StartJob)
 	mux.HandleFunc("POST /-/ci/jobs/logs", h.AppendLogs)

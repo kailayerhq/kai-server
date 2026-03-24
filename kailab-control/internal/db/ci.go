@@ -1384,6 +1384,76 @@ func (db *DB) GetRunnerByID(id string) (*model.Runner, error) {
 	return &r, nil
 }
 
+// RegisterRunner upserts a runner with its labels and marks it online.
+func (db *DB) RegisterRunner(id string, labels []string) error {
+	now := time.Now().Unix()
+	labelsJSON, _ := json.Marshal(labels)
+
+	if db.driver == DriverPostgres {
+		_, err := db.exec(`
+			INSERT INTO runners (id, name, labels, status, last_seen_at, created_at)
+			VALUES ($1, $2, $3, 'online', $4, $4)
+			ON CONFLICT (id) DO UPDATE SET labels = $3, status = 'online', last_seen_at = $4`,
+			id, id, string(labelsJSON), now)
+		return err
+	}
+	_, err := db.exec(`
+		INSERT INTO runners (id, name, labels, status, last_seen_at, created_at)
+		VALUES (?, ?, ?, 'online', ?, ?)
+		ON CONFLICT (id) DO UPDATE SET labels = ?, status = 'online', last_seen_at = ?`,
+		id, id, string(labelsJSON), now, now, string(labelsJSON), now)
+	return err
+}
+
+// CanRunLabel checks if any registered runner can handle the given runs-on label.
+func (db *DB) CanRunLabel(label string) (bool, error) {
+	// Get all runner labels
+	rows, err := db.query("SELECT labels FROM runners WHERE status != 'offline' OR last_seen_at > ?",
+		time.Now().Add(-5*time.Minute).Unix())
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var labelsJSON string
+		if err := rows.Scan(&labelsJSON); err != nil {
+			continue
+		}
+		var runnerLabels []string
+		if json.Unmarshal([]byte(labelsJSON), &runnerLabels) != nil {
+			continue
+		}
+		// Check if any runner label matches (with GitHub Actions expansion)
+		for _, rl := range runnerLabels {
+			if matchesRunsOn(rl, label) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// matchesRunsOn checks if a runner label matches a runs-on label, with GitHub Actions expansions.
+func matchesRunsOn(runnerLabel, runsOnLabel string) bool {
+	if runnerLabel == runsOnLabel {
+		return true
+	}
+	// Expand: linux matches ubuntu-*, ubuntu matches linux
+	expansions := map[string][]string{
+		"linux":   {"ubuntu-latest", "ubuntu-22.04", "ubuntu-24.04"},
+		"ubuntu":  {"linux", "ubuntu-latest"},
+		"macos":   {"macos-latest", "macos-14", "macos-15"},
+		"windows": {"windows-latest", "windows-2022"},
+	}
+	for _, expanded := range expansions[runnerLabel] {
+		if expanded == runsOnLabel {
+			return true
+		}
+	}
+	return false
+}
+
 // UpdateRunnerStatus updates a runner's status and last seen time.
 func (db *DB) UpdateRunnerStatus(id, status string) error {
 	now := time.Now().Unix()

@@ -112,11 +112,19 @@ func createStore(cfg *Config) (store.Store, error) {
 
 // Run starts the runner's main loop.
 func (r *Runner) Run(ctx context.Context) error {
+	// Register runner on startup
+	if err := r.registerRunner(ctx); err != nil {
+		log.Printf("Warning: failed to register runner: %v", err)
+	}
+
 	ticker := time.NewTicker(r.cfg.PollInterval)
 	defer ticker.Stop()
 
 	gcTicker := time.NewTicker(5 * time.Minute)
 	defer gcTicker.Stop()
+
+	heartbeatTicker := time.NewTicker(30 * time.Second)
+	defer heartbeatTicker.Stop()
 
 	// Initial GC on startup
 	r.gcStalePods(ctx)
@@ -131,8 +139,39 @@ func (r *Runner) Run(ctx context.Context) error {
 			}
 		case <-gcTicker.C:
 			r.gcStalePods(ctx)
+		case <-heartbeatTicker.C:
+			if err := r.registerRunner(ctx); err != nil {
+				log.Printf("Warning: runner heartbeat failed: %v", err)
+			}
 		}
 	}
+}
+
+// registerRunner registers this runner with the control plane.
+func (r *Runner) registerRunner(ctx context.Context) error {
+	reqBody := map[string]interface{}{
+		"runner_id": r.cfg.RunnerID,
+		"labels":    r.cfg.Labels,
+	}
+	body, _ := json.Marshal(reqBody)
+
+	url := fmt.Sprintf("%s/-/ci/runners/register", r.cfg.ControlPlaneURL)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("register failed: %s", resp.Status)
+	}
+	return nil
 }
 
 // poll checks for available jobs and executes one if found.
