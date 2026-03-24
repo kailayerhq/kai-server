@@ -99,29 +99,57 @@ func (jp *JobPod) actionCIPlan(ctx context.Context, stepDef *StepDefinition, job
 
 // fetchChangedFiles queries the data plane for files changed in the latest changeset.
 func fetchChangedFiles(ctx context.Context, baseURL string, logWriter io.Writer) ([]string, error) {
-	// Try the changeset endpoint
-	url := baseURL + "/v1/changeset/latest"
-
 	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+
+	// Step 1: Resolve cs.latest ref to get the changeset ID
+	refURL := baseURL + "/v1/refs/cs.latest"
+	req, err := http.NewRequestWithContext(ctx, "GET", refURL, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetching changeset: %w", err)
+		return nil, fmt.Errorf("fetching cs.latest ref: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("changeset returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("cs.latest ref returned %d", resp.StatusCode)
+	}
+
+	var refData struct {
+		Target string `json:"target"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&refData); err != nil {
+		return nil, fmt.Errorf("decoding ref: %w", err)
+	}
+
+	if refData.Target == "" {
+		return nil, fmt.Errorf("cs.latest has no target")
+	}
+
+	// Step 2: Fetch the changeset details
+	csURL := baseURL + "/v1/changesets/" + refData.Target
+	req2, err := http.NewRequestWithContext(ctx, "GET", csURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp2, err := client.Do(req2)
+	if err != nil {
+		return nil, fmt.Errorf("fetching changeset: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("changeset returned %d", resp2.StatusCode)
 	}
 
 	var csData struct {
 		ChangedFiles []string `json:"changedFiles"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&csData); err != nil {
+	if err := json.NewDecoder(resp2.Body).Decode(&csData); err != nil {
 		return nil, fmt.Errorf("decoding changeset: %w", err)
 	}
 
